@@ -42,7 +42,7 @@ class Date
   ABBR_DAY_NUM = ABBR_DAYNAMES.each_with_index.to_h { |n, i| [n.downcase, i] }.freeze
   private_constant :ABBR_MONTH_NUM, :ABBR_DAY_NUM
 
-  # Lowercase full name strings for StringScanner-based head matching
+  # Lowercase full name strings for head matching in strptime
   DAY_LOWER_STRS = DAYNAMES.map { |n| n.downcase.freeze }.freeze
   MONTH_LOWER_STRS = MONTHNAMES.map { |n| n&.downcase&.freeze }.freeze
   private_constant :DAY_LOWER_STRS, :MONTH_LOWER_STRS

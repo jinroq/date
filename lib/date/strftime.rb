@@ -59,70 +59,96 @@ class Date
       return "#{DAY_FULL_COMMA[w]}#{MONTH_FULL_SPACE[@month]}#{PAD2[@day]}, #{y_s}"
     end
 
-    result = +''.encode(fmt.encoding)
-    sc = StringScanner.new(fmt)
+    result  = +''.encode(fmt.encoding)
+    fi      = 0
+    fmt_len = fmt.length
 
-    until sc.eos?
-      # Batch collect literal (non-%) characters
-      if (lit = sc.scan(/[^%]+/))
-        result << lit
-        next
+    while fi < fmt_len
+      # Collect all literal (non-%) characters in one shot
+      pct_pos = fmt.index('%', fi)
+      if pct_pos.nil?
+        result << fmt[fi..]
+        break
       end
+      result << fmt[fi, pct_pos - fi] if pct_pos > fi
+      fi = pct_pos + 1  # advance past '%'
 
-      # Must be '%' or something unexpected
-      unless sc.skip(/%/)
-        result << sc.getch
-        next
-      end
-
-      if sc.eos?
+      if fi >= fmt_len
         result << '%'
         break
       end
 
       # Quick dispatch: if next char is a simple letter spec (A-Z excluding E/O,
       # or a-z), skip flag/width/prec parsing entirely.
-      if (quick = sc.scan(/[A-DFG-NP-Za-z]/))
-        fast = fast_spec(quick.ord)
+      c = fmt[fi]
+      c_ord = c.ord
+      if (c_ord >= 65 && c_ord <= 68) ||  # A-D
+         c_ord == 70 ||                    # F
+         (c_ord >= 71 && c_ord <= 78) ||  # G-N
+         (c_ord >= 80 && c_ord <= 90) ||  # P-Z (excludes E=69, O=79)
+         (c_ord >= 97 && c_ord <= 122)    # a-z
+        fi += 1
+        fast = fast_spec(c_ord)
         if fast
           result << fast
           next
         end
-        sc.unscan
+        fi -= 1  # unscan: fall through to full flag/width/spec parsing
       end
 
       # Parse flags (bitmask)
-      flags = 0
-      colons = 0
-      while (f = sc.scan(/[-_0^#]/))
-        case f
-        when '-' then flags |= FL_LEFT
-        when '_' then flags |= FL_SPACE
-        when '0' then flags |= FL_ZERO
-        when '^' then flags |= FL_UPPER
-        when '#' then flags |= FL_CHCASE
+      flags   = 0
+      colons  = 0
+      while fi < fmt_len
+        case fmt[fi]
+        when '-' then flags |= FL_LEFT;   fi += 1
+        when '_' then flags |= FL_SPACE;  fi += 1
+        when '0' then flags |= FL_ZERO;   fi += 1
+        when '^' then flags |= FL_UPPER;  fi += 1
+        when '#' then flags |= FL_CHCASE; fi += 1
+        else break
         end
       end
-      if (c = sc.scan(/:+/))
-        colons = c.length
+
+      # Pre-width colons (%:z, %::z, %:::z)
+      while fi < fmt_len && fmt[fi] == ':'
+        colons += 1; fi += 1
       end
 
-      # Parse width
-      width = sc.scan(/\d+/)&.to_i
-      raise Errno::ERANGE, "strftime" if width && width > STRFTIME_MAX_WIDTH
+      # Parse width (sequence of digits)
+      if fi < fmt_len && (b = fmt.getbyte(fi)) && b >= 48 && b <= 57
+        w_start = fi
+        fi += 1 while fi < fmt_len && (b = fmt.getbyte(fi)) && b >= 48 && b <= 57
+        width = fmt[w_start, fi - w_start].to_i
+        raise Errno::ERANGE, "strftime" if width > STRFTIME_MAX_WIDTH
+      else
+        width = nil
+      end
 
       # Parse precision (after '.')
-      prec = sc.skip(/\./) ? (sc.scan(/\d+/)&.to_i || 0) : nil
+      if fi < fmt_len && fmt[fi] == '.'
+        fi += 1
+        p_start = fi
+        fi += 1 while fi < fmt_len && (b = fmt.getbyte(fi)) && b >= 48 && b <= 57
+        prec = fi > p_start ? fmt[p_start, fi - p_start].to_i : 0
+      else
+        prec = nil
+      end
 
       # Post-width colons (for %8:z, %11::z etc.)
-      if (c = sc.scan(/:+/))
-        colons += c.length
+      while fi < fmt_len && fmt[fi] == ':'
+        colons += 1; fi += 1
       end
 
       # Locale modifier (%E or %O)
-      locale_mod = sc.scan(/[EO]/)&.ord
+      if fi < fmt_len && (fmt[fi] == 'E' || fmt[fi] == 'O')
+        locale_mod = fmt[fi].ord; fi += 1
+      else
+        locale_mod = nil
+      end
 
-      spec = sc.getch&.ord
+      spec = fi < fmt_len ? fmt[fi].ord : nil
+      fi += 1
 
       # Inline fast path: no flags, no width, no prec, no locale mod, no colons
       if flags == 0 && width.nil? && prec.nil? && locale_mod.nil? && colons == 0

@@ -101,213 +101,235 @@ class Date
     SP_SPACE_OR_DIGIT = / \d|\d{1,2}/
     SP_AMPM_DOT       = /[AaPp]\.[Mm]\./
     SP_AMPM           = /[AaPp][Mm]/
-    SP_NUM_CHECK      = /\d|%[EO]?[CDdeFGgHIjkLlMmNQRrSsTUuVvWwXxYy0-9]/
+    SP_NUM_CHECK      = /\A(?:\d|%[EO]?[CDdeFGgHIjkLlMmNQRrSsTUuVvWwXxYy0-9])/
     SP_DIGITS_1       = /\d/
     SP_DIGITS_2       = /\d{1,2}/
     SP_DIGITS_3       = /\d{1,3}/
     SP_DIGITS_4       = /\d{1,4}/
     SP_DIGITS_9       = /\d{1,9}/
     SP_DIGITS_MAX     = /\d+/
+    # Numeric zone pattern for sp_zone_to_diff fast path
+    SP_ZONE_NUMERIC   = /([+-])(\d{2}):?(\d{2})\z/
     private_constant :SP_WHITESPACE, :SP_COLONS, :SP_EO_CHECK, :SP_E_COMBO,
                      :SP_O_COMBO, :SP_ALPHA3, :SP_SIGN, :SP_SPACE_OR_DIGIT,
                      :SP_AMPM_DOT, :SP_AMPM, :SP_NUM_CHECK,
                      :SP_DIGITS_1, :SP_DIGITS_2, :SP_DIGITS_3, :SP_DIGITS_4,
-                     :SP_DIGITS_9, :SP_DIGITS_MAX
+                     :SP_DIGITS_9, :SP_DIGITS_MAX, :SP_ZONE_NUMERIC
 
-    # Core scanner: walks format string and string simultaneously using StringScanner.
-    # Returns new string position on success; throws :sp_fail on failure.
+    # Core scanner: walks format string and input string simultaneously using MatchData.
+    # Returns new input string position on success; throws :sp_fail on failure.
+    #
+    # Anchored matching is achieved by verifying md.begin(0) == pos after each
+    # pattern.match(str, pos) call, since String#match searches forward from pos
+    # rather than anchoring at pos.
     def sp_run(str, si, fmt, hash)
-      fmt_sc = StringScanner.new(fmt)
-      str_sc = StringScanner.new(str)
-      str_sc.pos = si
+      fi      = 0           # current index into format string
+      pos     = si          # current index into input string
+      fmt_len = fmt.length
+      str_len = str.length
 
-      until fmt_sc.eos?
+      until fi >= fmt_len
         # Whitespace in format: skip any whitespace in both format and string
-        if fmt_sc.skip(SP_WHITESPACE)
-          str_sc.skip(SP_WHITESPACE)
+        if (md = SP_WHITESPACE.match(fmt, fi)) && md.begin(0) == fi
+          fi = md.end(0)
+          if (md2 = SP_WHITESPACE.match(str, pos)) && md2.begin(0) == pos
+            pos = md2.end(0)
+          end
           next
         end
 
         # Non-% literal: must match exactly
-        unless fmt_sc.check(/%/)
-          fc = fmt_sc.getch
-          throw(:sp_fail) if str_sc.eos?
-          throw(:sp_fail) if str_sc.getch != fc
+        unless fmt[fi] == '%'
+          fc = fmt[fi]; fi += 1
+          throw(:sp_fail) if pos >= str_len || str[pos] != fc
+          pos += 1
           next
         end
 
-        fmt_sc.skip(/%/) # skip '%'
+        fi += 1  # skip '%'
 
         # Handle colon modifiers: %:z, %::z, %:::z
-        if fmt_sc.scan(SP_COLONS)
-          throw(:sp_fail) unless fmt_sc.skip(/z/)
-          str_sc.pos = sp_zone(str, str_sc.pos, str.bytesize, hash)
+        if (md = SP_COLONS.match(fmt, fi)) && md.begin(0) == fi
+          fi = md.end(0)
+          throw(:sp_fail) unless fi < fmt_len && fmt[fi] == 'z'
+          fi += 1
+          pos = sp_zone(str, pos, str.bytesize, hash)
           next
         end
 
         # Handle E/O locale modifiers
-        if fmt_sc.check(SP_EO_CHECK)
-          if fmt_sc.check(SP_E_COMBO) || fmt_sc.check(SP_O_COMBO)
-            fmt_sc.skip(SP_EO_CHECK) # skip modifier, fall through to spec
+        if fi < fmt_len && (fmt[fi] == 'E' || fmt[fi] == 'O')
+          combo = fmt[fi, 2]
+          if SP_E_COMBO.match?(combo) || SP_O_COMBO.match?(combo)
+            fi += 1  # skip modifier, fall through to spec
           else
             # Invalid combo: match '%' literally in string
-            throw(:sp_fail) if str_sc.eos? || str_sc.peek(1) != '%'
-            str_sc.skip(/%/)
+            throw(:sp_fail) if pos >= str_len || str[pos] != '%'
+            pos += 1
             next
           end
         end
 
-        spec_ch = fmt_sc.getch
+        spec_ch = fi < fmt_len ? fmt[fi] : nil
+        fi += 1 if spec_ch
         spec = spec_ch&.ord
 
         case spec
-        when 65, 97 # 'A', 'a'
-          s3 = str_sc.scan(SP_ALPHA3)
-          throw(:sp_fail) unless s3
+        when 65, 97  # 'A', 'a'
+          md = SP_ALPHA3.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          s3 = md[0]; pos = md.end(0)
           key = compute_3key(s3)
           entry = ABBR_DAY_3KEY[key]
           throw(:sp_fail) unless entry
           wday_i = entry[0]
           remaining = entry[1] - 3
           if remaining > 0
-            tail = str_sc.peek(remaining)
+            tail = str[pos, remaining]
             if tail.length == remaining && tail.downcase == DAY_LOWER_STRS[wday_i][3..]
-              str_sc.pos += remaining
+              pos += remaining
             end
           end
           hash[:wday] = wday_i
 
-        when 66, 98, 104 # 'B', 'b', 'h'
-          s3 = str_sc.scan(SP_ALPHA3)
-          throw(:sp_fail) unless s3
+        when 66, 98, 104  # 'B', 'b', 'h'
+          md = SP_ALPHA3.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          s3 = md[0]; pos = md.end(0)
           key = compute_3key(s3)
           entry = ABBR_MONTH_3KEY[key]
           throw(:sp_fail) unless entry
           mon_i = entry[0]
           remaining = entry[1] - 3
           if remaining > 0
-            tail = str_sc.peek(remaining)
+            tail = str[pos, remaining]
             if tail.length == remaining && tail.downcase == MONTH_LOWER_STRS[mon_i][3..]
-              str_sc.pos += remaining
+              pos += remaining
             end
           end
           hash[:mon] = mon_i
 
-        when 67 # 'C'
-          num_next = !fmt_sc.eos? && fmt_sc.check(SP_NUM_CHECK)
-          if str_sc.scan(SP_SIGN)
-            sign = str_sc.matched == '-' ? -1 : 1
+        when 67  # 'C'
+          num_next = fi < fmt_len && SP_NUM_CHECK.match?(fmt[fi..])
+          md = SP_SIGN.match(str, pos)
+          if md && md.begin(0) == pos
+            sign = md[0] == '-' ? -1 : 1; pos = md.end(0)
           else
             sign = 1
           end
-          s = str_sc.scan(num_next ? SP_DIGITS_2 : SP_DIGITS_MAX)
-          throw(:sp_fail) unless s
-          hash[:_cent] = sign * s.to_i
+          md = (num_next ? SP_DIGITS_2 : SP_DIGITS_MAX).match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          hash[:_cent] = sign * md.integer_at(0)
+          pos = md.end(0)
 
-        when 99 # 'c'
-          str_sc.pos = sp_run(str, str_sc.pos, '%a %b %e %H:%M:%S %Y', hash)
+        when 99  # 'c'
+          pos = sp_run(str, pos, '%a %b %e %H:%M:%S %Y', hash)
 
-        when 68 # 'D'
-          str_sc.pos = sp_run(str, str_sc.pos, '%m/%d/%y', hash)
+        when 68  # 'D'
+          pos = sp_run(str, pos, '%m/%d/%y', hash)
 
-        when 100, 101 # 'd', 'e'
-          s = str_sc.scan(SP_SPACE_OR_DIGIT)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 100, 101  # 'd', 'e'
+          md = SP_SPACE_OR_DIGIT.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n < 1 || n > 31
           hash[:mday] = n
 
-        when 70 # 'F'
-          str_sc.pos = sp_run(str, str_sc.pos, '%Y-%m-%d', hash)
+        when 70  # 'F'
+          pos = sp_run(str, pos, '%Y-%m-%d', hash)
 
-        when 71 # 'G'
-          if str_sc.scan(SP_SIGN)
-            sign = str_sc.matched == '-' ? -1 : 1
+        when 71  # 'G'
+          md = SP_SIGN.match(str, pos)
+          if md && md.begin(0) == pos
+            sign = md[0] == '-' ? -1 : 1; pos = md.end(0)
           else
             sign = 1
           end
-          num_next = !fmt_sc.eos? && fmt_sc.check(SP_NUM_CHECK)
-          s = str_sc.scan(num_next ? SP_DIGITS_4 : SP_DIGITS_MAX)
-          throw(:sp_fail) unless s
-          hash[:cwyear] = sign * s.to_i
+          num_next = fi < fmt_len && SP_NUM_CHECK.match?(fmt[fi..])
+          md = (num_next ? SP_DIGITS_4 : SP_DIGITS_MAX).match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          hash[:cwyear] = sign * md.integer_at(0)
+          pos = md.end(0)
 
-        when 103 # 'g'
-          s = str_sc.scan(SP_DIGITS_2)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 103  # 'g'
+          md = SP_DIGITS_2.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n > 99
           hash[:cwyear] = n
           hash[:_cent] ||= n >= 69 ? 19 : 20
 
-        when 72, 107 # 'H', 'k'
-          s = str_sc.scan(SP_SPACE_OR_DIGIT)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 72, 107  # 'H', 'k'
+          md = SP_SPACE_OR_DIGIT.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n > 24
           hash[:hour] = n
 
-        when 73, 108 # 'I', 'l'
-          s = str_sc.scan(SP_SPACE_OR_DIGIT)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 73, 108  # 'I', 'l'
+          md = SP_SPACE_OR_DIGIT.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n < 1 || n > 12
           hash[:hour] = n
 
-        when 106 # 'j'
-          s = str_sc.scan(SP_DIGITS_3)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 106  # 'j'
+          md = SP_DIGITS_3.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n < 1 || n > 366
           hash[:yday] = n
 
-        when 76 # 'L'
-          if str_sc.scan(SP_SIGN)
-            sign = str_sc.matched == '-' ? -1 : 1
+        when 76  # 'L'
+          md = SP_SIGN.match(str, pos)
+          if md && md.begin(0) == pos
+            sign = md[0] == '-' ? -1 : 1; pos = md.end(0)
           else
             sign = 1
           end
-          osi = str_sc.pos
-          num_next = !fmt_sc.eos? && fmt_sc.check(SP_NUM_CHECK)
-          s = str_sc.scan(num_next ? SP_DIGITS_3 : SP_DIGITS_MAX)
-          throw(:sp_fail) unless s
-          n = s.to_i
+          osi = pos
+          num_next = fi < fmt_len && SP_NUM_CHECK.match?(fmt[fi..])
+          md = (num_next ? SP_DIGITS_3 : SP_DIGITS_MAX).match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           n = -n if sign == -1
-          hash[:sec_fraction] = Rational(n, 10**(str_sc.pos - osi))
+          hash[:sec_fraction] = Rational(n, 10**(pos - osi))
 
-        when 77 # 'M'
-          s = str_sc.scan(SP_DIGITS_2)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 77  # 'M'
+          md = SP_DIGITS_2.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n > 59
           hash[:min] = n
 
-        when 109 # 'm'
-          s = str_sc.scan(SP_DIGITS_2)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 109  # 'm'
+          md = SP_DIGITS_2.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n < 1 || n > 12
           hash[:mon] = n
 
-        when 78 # 'N'
-          if str_sc.scan(SP_SIGN)
-            sign = str_sc.matched == '-' ? -1 : 1
+        when 78  # 'N'
+          md = SP_SIGN.match(str, pos)
+          if md && md.begin(0) == pos
+            sign = md[0] == '-' ? -1 : 1; pos = md.end(0)
           else
             sign = 1
           end
-          osi = str_sc.pos
-          num_next = !fmt_sc.eos? && fmt_sc.check(SP_NUM_CHECK)
-          s = str_sc.scan(num_next ? SP_DIGITS_9 : SP_DIGITS_MAX)
-          throw(:sp_fail) unless s
-          n = s.to_i
+          osi = pos
+          num_next = fi < fmt_len && SP_NUM_CHECK.match?(fmt[fi..])
+          md = (num_next ? SP_DIGITS_9 : SP_DIGITS_MAX).match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           n = -n if sign == -1
-          hash[:sec_fraction] = Rational(n, 10**(str_sc.pos - osi))
+          hash[:sec_fraction] = Rational(n, 10**(pos - osi))
 
-        when 110, 116 # 'n', 't'
-          str_sc.pos = sp_run(str, str_sc.pos, ' ', hash)
+        when 110, 116  # 'n', 't'
+          pos = sp_run(str, pos, ' ', hash)
 
-        when 80, 112 # 'P', 'p'
-          throw(:sp_fail) if str_sc.eos?
-          c0 = str_sc.peek(1)
+        when 80, 112  # 'P', 'p'
+          throw(:sp_fail) if pos >= str_len
+          c0 = str[pos]
           if c0 == 'P' || c0 == 'p'
             merid = 12
           elsif c0 == 'A' || c0 == 'a'
@@ -315,138 +337,142 @@ class Date
           else
             throw(:sp_fail)
           end
-          unless str_sc.scan(SP_AMPM_DOT) || str_sc.scan(SP_AMPM)
-            throw(:sp_fail)
+          md = SP_AMPM_DOT.match(str, pos)
+          unless md && md.begin(0) == pos
+            md = SP_AMPM.match(str, pos)
+            throw(:sp_fail) unless md && md.begin(0) == pos
           end
+          pos = md.end(0)
           hash[:_merid] = merid
 
-        when 81 # 'Q'
+        when 81  # 'Q'
           sign = 1
-          if str_sc.skip(/-/)
-            sign = -1
+          if pos < str_len && str[pos] == '-'
+            sign = -1; pos += 1
           end
-          s = str_sc.scan(SP_DIGITS_MAX)
-          throw(:sp_fail) unless s
-          n = s.to_i
+          md = SP_DIGITS_MAX.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           n = -n if sign == -1
           hash[:seconds] = Rational(n, 1000)
 
-        when 82 # 'R'
-          str_sc.pos = sp_run(str, str_sc.pos, '%H:%M', hash)
+        when 82  # 'R'
+          pos = sp_run(str, pos, '%H:%M', hash)
 
-        when 114 # 'r'
-          str_sc.pos = sp_run(str, str_sc.pos, '%I:%M:%S %p', hash)
+        when 114  # 'r'
+          pos = sp_run(str, pos, '%I:%M:%S %p', hash)
 
-        when 83 # 'S'
-          s = str_sc.scan(SP_DIGITS_2)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 83  # 'S'
+          md = SP_DIGITS_2.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n > 60
           hash[:sec] = n
 
-        when 115 # 's'
+        when 115  # 's'
           sign = 1
-          if str_sc.skip(/-/)
-            sign = -1
+          if pos < str_len && str[pos] == '-'
+            sign = -1; pos += 1
           end
-          s = str_sc.scan(SP_DIGITS_MAX)
-          throw(:sp_fail) unless s
-          n = s.to_i
+          md = SP_DIGITS_MAX.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           n = -n if sign == -1
           hash[:seconds] = n
 
-        when 84 # 'T'
-          str_sc.pos = sp_run(str, str_sc.pos, '%H:%M:%S', hash)
+        when 84  # 'T'
+          pos = sp_run(str, pos, '%H:%M:%S', hash)
 
-        when 85 # 'U'
-          s = str_sc.scan(SP_DIGITS_2)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 85  # 'U'
+          md = SP_DIGITS_2.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n > 53
           hash[:wnum0] = n
 
-        when 117 # 'u'
-          s = str_sc.scan(SP_DIGITS_1)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 117  # 'u'
+          md = SP_DIGITS_1.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n < 1 || n > 7
           hash[:cwday] = n
 
-        when 86 # 'V'
-          s = str_sc.scan(SP_DIGITS_2)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 86  # 'V'
+          md = SP_DIGITS_2.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n < 1 || n > 53
           hash[:cweek] = n
 
-        when 118 # 'v'
-          str_sc.pos = sp_run(str, str_sc.pos, '%e-%b-%Y', hash)
+        when 118  # 'v'
+          pos = sp_run(str, pos, '%e-%b-%Y', hash)
 
-        when 87 # 'W'
-          s = str_sc.scan(SP_DIGITS_2)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 87  # 'W'
+          md = SP_DIGITS_2.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n > 53
           hash[:wnum1] = n
 
-        when 119 # 'w'
-          s = str_sc.scan(SP_DIGITS_1)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 119  # 'w'
+          md = SP_DIGITS_1.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n > 6
           hash[:wday] = n
 
-        when 88 # 'X'
-          str_sc.pos = sp_run(str, str_sc.pos, '%H:%M:%S', hash)
+        when 88  # 'X'
+          pos = sp_run(str, pos, '%H:%M:%S', hash)
 
-        when 120 # 'x'
-          str_sc.pos = sp_run(str, str_sc.pos, '%m/%d/%y', hash)
+        when 120  # 'x'
+          pos = sp_run(str, pos, '%m/%d/%y', hash)
 
-        when 89 # 'Y'
-          if str_sc.scan(SP_SIGN)
-            sign = str_sc.matched == '-' ? -1 : 1
+        when 89  # 'Y'
+          md = SP_SIGN.match(str, pos)
+          if md && md.begin(0) == pos
+            sign = md[0] == '-' ? -1 : 1; pos = md.end(0)
           else
             sign = 1
           end
-          num_next = !fmt_sc.eos? && fmt_sc.check(SP_NUM_CHECK)
-          s = str_sc.scan(num_next ? SP_DIGITS_4 : SP_DIGITS_MAX)
-          throw(:sp_fail) unless s
-          hash[:year] = sign * s.to_i
+          num_next = fi < fmt_len && SP_NUM_CHECK.match?(fmt[fi..])
+          md = (num_next ? SP_DIGITS_4 : SP_DIGITS_MAX).match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          hash[:year] = sign * md.integer_at(0)
+          pos = md.end(0)
 
-        when 121 # 'y'
-          s = str_sc.scan(SP_DIGITS_2)
-          throw(:sp_fail) unless s
-          n = s.to_i
+        when 121  # 'y'
+          md = SP_DIGITS_2.match(str, pos)
+          throw(:sp_fail) unless md && md.begin(0) == pos
+          n = md.integer_at(0); pos = md.end(0)
           throw(:sp_fail) if n > 99
           hash[:year] = n
           hash[:_cent] ||= n >= 69 ? 19 : 20
 
-        when 90, 122 # 'Z', 'z'
-          str_sc.pos = sp_zone(str, str_sc.pos, str.bytesize, hash)
+        when 90, 122  # 'Z', 'z'
+          pos = sp_zone(str, pos, str.bytesize, hash)
 
-        when 37 # '%'
-          throw(:sp_fail) if str_sc.eos? || str_sc.peek(1) != '%'
-          str_sc.skip(/%/)
+        when 37  # '%'
+          throw(:sp_fail) if pos >= str_len || str[pos] != '%'
+          pos += 1
 
-        when 43 # '+'
-          str_sc.pos = sp_run(str, str_sc.pos, '%a %b %e %H:%M:%S %Z %Y', hash)
+        when 43  # '+'
+          pos = sp_run(str, pos, '%a %b %e %H:%M:%S %Z %Y', hash)
 
         else
-          # Unknown spec: match '%' then spec literally
-          throw(:sp_fail) if str_sc.eos? || str_sc.peek(1) != '%'
-          str_sc.skip(/%/)
+          # Unknown spec: match '%' then spec char literally
+          throw(:sp_fail) if pos >= str_len || str[pos] != '%'
+          pos += 1
           if spec_ch
-            throw(:sp_fail) if str_sc.eos? || str_sc.peek(1) != spec_ch
-            str_sc.getch
+            throw(:sp_fail) if pos >= str_len || str[pos] != spec_ch
+            pos += 1
           end
         end
       end
 
-      str_sc.pos
+      pos
     end
 
     # Fast path for %Y-%m-%d / %F format.
-    # Uses match? + byteslice to avoid StringScanner allocation overhead.
     STRPTIME_YMD_EXACT = /\A\d{4}-\d{2}-\d{2}\z/
     STRPTIME_YMD_PREFIX = /\A\d{4}-\d{2}-\d{2}/
     STRPTIME_YMD_GENERAL = /\A([+-]?\d+)-(\d{1,2})-(\d{1,2})(.*)\z/m
@@ -491,7 +517,6 @@ class Date
 
     # Parse %Y-%m-%d and directly create Date object.
     # Returns Date object on success, nil on failure.
-    # Uses match? + byteslice to avoid StringScanner allocation overhead.
     STRPTIME_YMD_GENERAL_EXACT = /\A([+-]?\d+)-(\d{1,2})-(\d{1,2})\z/
     private_constant :STRPTIME_YMD_GENERAL_EXACT
 
@@ -524,7 +549,6 @@ class Date
     end
 
     # Fast path for "%a %b %d %Y" format.
-    # Uses single regex match to avoid StringScanner allocation.
     STRPTIME_ABDY_PAT = /\A([A-Za-z]{3})([A-Za-z]*) +([A-Za-z]{3})([A-Za-z]*) +(\d{1,2}) +([+-]?\d+)/
     private_constant :STRPTIME_ABDY_PAT
 
@@ -563,7 +587,6 @@ class Date
     end
 
     # Parse "%a %b %d %Y" and directly create Date object.
-    # Uses single regex match to avoid StringScanner allocation.
     def internalinternal_strptime_abdy_to_date(str, sg)
       m = STRPTIME_ABDY_PAT.match(str)
       return nil unless m
@@ -616,11 +639,10 @@ class Date
       len = zone_str.length
       c0 = zone_str[0]
       if c0 == '+' || c0 == '-'
-        sc = StringScanner.new(zone_str)
-        if sc.scan(/([+-])(\d{2}):?(\d{2})\z/)
-          sign = sc[1] == '-' ? -1 : 1
-          h = sc[2].to_i
-          m = sc[3].to_i
+        if (md = SP_ZONE_NUMERIC.match(zone_str))
+          sign = md[1] == '-' ? -1 : 1
+          h = md.integer_at(2)
+          m = md.integer_at(3)
           return nil if h > 23 || m > 59
           return sign * (h * 3600 + m * 60)
         end

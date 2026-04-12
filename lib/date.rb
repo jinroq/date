@@ -2,7 +2,6 @@
 # date.rb: Written by Tadayoshi Funaba 1998-2011
 
 require 'timeout'
-require 'strscan'
 
 if RUBY_VERSION >= "3.3"
   require_relative "date/version"

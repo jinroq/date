@@ -35,22 +35,19 @@ class Date
       # Fast path: YYYY-MM-DDTHH:MM:SS+HH:MM (25 bytes) or YYYY-MM-DDTHH:MM:SSZ (20 bytes)
       len = string.length
       if len == 25 || len == 20
-        sc = StringScanner.new(string)
-        if sc.scan(/(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})/)
+        if (md = /\A(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})([Zz]|([+-])(\d{2}):(\d{2}))\z/.match(string))
           h = {
-            year: sc[1].to_i, mon: sc[2].to_i, mday: sc[3].to_i,
-            hour: sc[4].to_i, min: sc[5].to_i, sec: sc[6].to_i
+            year: md[1].to_i, mon: md[2].to_i, mday: md[3].to_i,
+            hour: md[4].to_i, min: md[5].to_i, sec: md[6].to_i
           }
-          if sc.scan(/[Zz]\z/)
-            h[:zone] = sc.matched
+          zone = md[7]
+          h[:zone] = zone
+          if zone[0] == 'Z' || zone[0] == 'z'
             h[:offset] = 0
-            return h
-          elsif sc.scan(/([+-])(\d{2}):(\d{2})\z/)
-            zone = sc.matched
-            h[:zone] = zone
-            h[:offset] = (sc[1] == '-' ? -1 : 1) * (sc[2].to_i * 3600 + sc[3].to_i * 60)
-            return h
+          else
+            h[:offset] = (md[8] == '-' ? -1 : 1) * (md[9].to_i * 3600 + md[10].to_i * 60)
           end
+          return h
         end
       end
 
@@ -102,17 +99,16 @@ class Date
       # Fast path for Type 1: "Dow, DD Mon YYYY HH:MM:SS GMT" (29 bytes)
       len = string.length
       if len == 29
-        sc = StringScanner.new(string)
-        if sc.scan(/([A-Za-z]{3}), (\d{2}) ([A-Za-z]{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) (GMT)\z/i)
-          wkey = compute_3key(sc[1])
+        if (md = /\A([A-Za-z]{3}), (\d{2}) ([A-Za-z]{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) (GMT)\z/i.match(string))
+          wkey = compute_3key(md[1])
           wday_info = ABBR_DAY_3KEY[wkey]
           if wday_info
-            mkey = compute_3key(sc[3])
+            mkey = compute_3key(md[3])
             mon_info = ABBR_MONTH_3KEY[mkey]
             if mon_info
               return {
-                wday: wday_info[0], mday: sc[2].to_i, mon: mon_info[0],
-                year: sc[4].to_i, hour: sc[5].to_i, min: sc[6].to_i, sec: sc[7].to_i,
+                wday: wday_info[0], mday: md[2].to_i, mon: mon_info[0],
+                year: md[4].to_i, hour: md[5].to_i, min: md[6].to_i, sec: md[7].to_i,
                 zone: 'GMT', offset: 0
               }
             end
@@ -184,21 +180,20 @@ class Date
       # Fast path: "Dow, DD Mon YYYY HH:MM:SS +ZZZZ" (31 bytes, 2-digit day)
       len = string.length
       if len == 31
-        sc = StringScanner.new(string)
-        if sc.scan(/([A-Za-z]{3}), (\d{2}) ([A-Za-z]{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})\z/)
-          wkey = compute_3key(sc[1])
+        if (md = /\A([A-Za-z]{3}), (\d{2}) ([A-Za-z]{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})\z/.match(string))
+          wkey = compute_3key(md[1])
           wday_info = ABBR_DAY_3KEY[wkey]
           if wday_info
-            mkey = compute_3key(sc[3])
+            mkey = compute_3key(md[3])
             mon_info = ABBR_MONTH_3KEY[mkey]
             if mon_info
-              zone = sc[8]
+              zone = md[8]
               sign = zone[0] == '-' ? -1 : 1
               offset_val = sign * (zone[1, 2].to_i * 3600 + zone[3, 2].to_i * 60)
               zone = '+0000' if zone == '+0000'
               return {
-                wday: wday_info[0], mday: sc[2].to_i, mon: mon_info[0],
-                year: sc[4].to_i, hour: sc[5].to_i, min: sc[6].to_i, sec: sc[7].to_i,
+                wday: wday_info[0], mday: md[2].to_i, mon: mon_info[0],
+                year: md[4].to_i, hour: md[5].to_i, min: md[6].to_i, sec: md[7].to_i,
                 zone: zone, offset: offset_val
               }
             end
@@ -264,9 +259,8 @@ class Date
 
       # Fast path: YYYY-MM-DD (exactly 10 bytes, all ASCII)
       if string.length == 10
-        sc = StringScanner.new(string)
-        if sc.scan(/(\d{4})-(\d{2})-(\d{2})\z/)
-          return { year: sc[1].to_i, mon: sc[2].to_i, mday: sc[3].to_i }
+        if (md = /\A(\d{4})-(\d{2})-(\d{2})\z/.match(string))
+          return { year: md[1].to_i, mon: md[2].to_i, mday: md[3].to_i }
         end
       end
 
@@ -326,9 +320,8 @@ class Date
 
       # Fast path: YYYY-MM-DD (exactly 10 bytes, all ASCII)
       if string.length == 10
-        sc = StringScanner.new(string)
-        if sc.scan(/(\d{4})-(\d{2})-(\d{2})\z/)
-          return { mday: sc[3].to_i, year: sc[1].to_i, mon: sc[2].to_i }
+        if (md = /\A(\d{4})-(\d{2})-(\d{2})\z/.match(string))
+          return { mday: md[3].to_i, year: md[1].to_i, mon: md[2].to_i }
         end
       end
 
@@ -382,14 +375,13 @@ class Date
 
       # Fast path: X##.##.## (9 bytes: era + YY.MM.DD)
       if string.length == 9
-        sc = StringScanner.new(string)
-        if sc.scan(/([A-Za-z])(\d{2})\.(\d{2})\.(\d{2})\z/)
-          era_offset = JISX0301_ERA[sc[1].downcase]
+        if (md = /\A([A-Za-z])(\d{2})\.(\d{2})\.(\d{2})\z/.match(string))
+          era_offset = JISX0301_ERA[md[1].downcase]
           if era_offset
             return {
-              year: sc[2].to_i + era_offset,
-              mon:  sc[3].to_i,
-              mday: sc[4].to_i
+              year: md[2].to_i + era_offset,
+              mon:  md[3].to_i,
+              mday: md[4].to_i
             }
           end
         end
@@ -457,17 +449,15 @@ class Date
 
       # Fast ISO: YYYY-MM-DD (exactly 10 ASCII bytes)
       if len == 10
-        sc = StringScanner.new(string)
-        if sc.scan(/(\d{4})-(\d{2})-(\d{2})\z/)
-          return { year: sc[1].to_i, mon: sc[2].to_i, mday: sc[3].to_i }
+        if (md = /\A(\d{4})-(\d{2})-(\d{2})\z/.match(string))
+          return { year: md[1].to_i, mon: md[2].to_i, mday: md[3].to_i }
         end
       end
 
       # Fast compact: YYYYMMDD (exactly 8 ASCII digit bytes)
       if len == 8
-        sc = StringScanner.new(string)
-        if sc.scan(/(\d{4})(\d{2})(\d{2})\z/)
-          return { year: sc[1].to_i, mon: sc[2].to_i, mday: sc[3].to_i }
+        if (md = /\A(\d{4})(\d{2})(\d{2})\z/.match(string))
+          return { year: md[1].to_i, mon: md[2].to_i, mday: md[3].to_i }
         end
       end
 
@@ -832,10 +822,9 @@ class Date
       return 0 if len == 1 && (zone_str[0] == 'Z' || zone_str[0] == 'z')
 
       if zone_str[0] == '+' || zone_str[0] == '-'
-        sc = StringScanner.new(zone_str)
-        if sc.scan(/([+-])(\d{2}):?(\d{2})\z/)
-          sign = sc[1] == '-' ? -1 : 1
-          return sign * (sc[2].to_i * 3600 + sc[3].to_i * 60)
+        if (md = /\A([+-])(\d{2}):?(\d{2})\z/.match(zone_str))
+          sign = md[1] == '-' ? -1 : 1
+          return sign * (md[2].to_i * 3600 + md[3].to_i * 60)
         end
       end
 
