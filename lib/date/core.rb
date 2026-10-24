@@ -775,14 +775,12 @@ class Date
   #   day_fraction -> 0
   #
   # Returns +0+; a \Date has no fractional day component.
-  # (DateTime#day_fraction returns the fractional part of the day.)
   #
   #   Date.new(2001, 2, 3).day_fraction         # => 0
-  #   DateTime.new(2001, 2, 3, 12).day_fraction # => (1/2)
   #
   def day_fraction
     # Date designates a whole day and has no fractional component, so this is
-    # always 0 (an Integer). DateTime overrides this with its own value.
+    # always 0 (an Integer).
     0
   end
 
