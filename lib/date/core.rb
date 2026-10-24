@@ -38,6 +38,9 @@ class Date
       civil_fallback(year, month, day, start)
     end
 
+    alias_method :new_from_jd, :new
+    private :new_from_jd
+
     # call-seq:
     #   Date.new(year = -4712, month = 1, mday = 1, start = Date::ITALY) -> date
     #
@@ -563,15 +566,6 @@ class Date
     # ---------------------------------------------------------------------------
     # Internal object factory
     # ---------------------------------------------------------------------------
-
-    # Build a Date from a Julian Day Number and start. When the civil fields
-    # are already known (e.g. the Date.new fast path), pass them so the new
-    # instance can cache them instead of recomputing from the Julian Day.
-    def new_from_jd(jd, sg, year = nil, month = nil, day = nil)
-      obj = allocate
-      obj.__send__(:initialize, jd, sg, year, month, day)
-      obj
-    end
 
     # Parse offset string like "+09:00", "-07:30", "Z" to seconds.
     def offset_str_to_sec(str)
