@@ -19,20 +19,9 @@ class Date
   #
   # For other formats, see
   # {Formats for Dates and Times}[rdoc-ref:language/strftime_formatting.rdoc].
-  def strftime(format = DEFAULT_STRFTIME_FMT)
-    if format.equal?(DEFAULT_STRFTIME_FMT)
-      internal_civil unless @year
-      result = fast_ymd.force_encoding(Encoding::US_ASCII)
-      fmt = DEFAULT_STRFTIME_FMT
-    else
-      fmt = format.to_str
-      if fmt == YMD_FMT
-        internal_civil unless @year
-        result = fast_ymd.force_encoding(Encoding::US_ASCII)
-      else
-        result = internal_strftime(fmt).force_encoding(fmt.encoding)
-      end
-    end
+  def strftime(format = nil || (return iso8601))
+    fmt = format.to_str
+    result = internal_strftime(fmt).force_encoding(fmt.encoding)
     # The C extension formats into an output buffer that grows 1024, 2048, ...
     # and gives up with Errno::ERANGE once the buffer would reach 1024 * flen
     # (flen = format string length) while still not fitting. The effective
