@@ -21,17 +21,7 @@ class Date
   # {Formats for Dates and Times}[rdoc-ref:language/strftime_formatting.rdoc].
   def strftime(format = nil || (return iso8601))
     fmt = format.to_str
-    result = internal_strftime(fmt).force_encoding(fmt.encoding)
-    # The C extension formats into an output buffer that grows 1024, 2048, ...
-    # and gives up with Errno::ERANGE once the buffer would reach 1024 * flen
-    # (flen = format string length) while still not fitting. The effective
-    # limit is thus the smallest 1024 * 2**k that is >= 1024 * flen, i.e.
-    # 1024 << ceil(log2(flen)); output whose byte length reaches it raises.
-    # The limit is always >= 1024, so skip the check entirely for shorter output.
-    if result.bytesize >= 1024
-      raise Errno::ERANGE, "strftime" if result.bytesize >= 1024 << (fmt.bytesize - 1).bit_length
-    end
-    result
+    internal_strftime(fmt).force_encoding(fmt.encoding)
   end
 
   private
@@ -192,6 +182,7 @@ class Date
     when 89  # 'Y'
       internal_civil unless @year
       y = @year
+      check_fmt_year(y)
       if y >= 1000
         y.to_s
       elsif y >= 0
@@ -371,8 +362,19 @@ class Date
     end
   end
 
+  ALLOWED_FMT_YEAR_RANGE = (-(1 << 6796))...(1 << 6800)
+  private_constant :ALLOWED_FMT_YEAR_RANGE
+
+  def check_fmt_year(y)
+    unless ALLOWED_FMT_YEAR_RANGE.cover?(y)
+      raise Errno::ERANGE, "Numerical result out of range"
+    end
+  end
+
   # Format year (handles negative years and all flag variants)
   def fmt_year(y, width, flags)
+    check_fmt_year(y)
+
     # The result is always numeric (digits with an optional leading '-'), so the
     # upper/chcase flags are no-ops and need no handling here.
     sign = y < 0 ? '-' : ''
