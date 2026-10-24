@@ -544,11 +544,7 @@ class DateTime < Date
   # ---------------------------------------------------------------------------
 
   class << self
-    def new(*args)
-      instance = allocate
-      instance.__send__(:initialize, *args)
-      instance
-    end
+    define_method(:new, Class.instance_method(:new))
     alias_method :civil, :new
 
     undef_method :today
