@@ -591,8 +591,7 @@ class Date
   #   (Date.new(1, 1, 1) - 1).year # => 0
   #
   def year
-    internal_civil unless @year
-    @year
+    @year || (internal_civil; @year)
   end
 
   # call-seq:
@@ -603,8 +602,7 @@ class Date
   #   Date.new(2001, 2, 3).mon # => 2
   #
   def month
-    internal_civil unless @year
-    @month
+    @month || (internal_civil; @month)
   end
   alias mon month
 
@@ -616,8 +614,7 @@ class Date
   #   Date.new(2001, 2, 3).mday # => 3
   #
   def day
-    internal_civil unless @year
-    @day
+    @day || (internal_civil; @day)
   end
   alias mday day
 
