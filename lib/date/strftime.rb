@@ -372,7 +372,6 @@ class Date
     when 37  # '%'
       fmt_str('%', width, flags)
     else
-      # Try composite (includes '+', see STRFTIME_COMPOSITE_BYTE)
       expansion = STRFTIME_COMPOSITE_BYTE[spec]
       if expansion
         s = internal_strftime(expansion)
