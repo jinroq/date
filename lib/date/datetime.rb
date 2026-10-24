@@ -982,28 +982,14 @@ class DateTime < Date
                               "no implicit conversion of #{n.class} into Integer"
   end
 
-  def internal_hour
-    @hour
-  end
-
-  def internal_min
-    @min
-  end
-
-  def internal_sec
-    @sec
-  end
-
-  def sec_frac
-    @sec_fraction
-  end
+  alias internal_hour hour
+  alias internal_min min
+  alias internal_sec sec
+  alias sec_frac sec_fraction
+  alias zone_str zone
 
   def of_seconds
     @of
-  end
-
-  def zone_str
-    zone
   end
 
   # Overrides of the Date strftime time-part helpers (see Date#strftime_hms):
