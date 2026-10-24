@@ -5,7 +5,7 @@ class DateTime < Date
 
   # Sentinel marking an hour/minute/second argument that was not passed, so a
   # trailing fraction can be rejected only when a smaller unit was actually given.
-  UNSET = Object.new
+  UNSET = Object.new.freeze
   private_constant :UNSET
 
   # ---------------------------------------------------------------------------
