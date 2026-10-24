@@ -24,7 +24,7 @@ class DateTime < Date
 
     # Validate argument types in the C extension's order (offset, then second
     # down to year) so the same field is reported first when several are bad.
-    of_sec = self.class.__send__(:_parse_of, offset)
+    of_sec = self.class.__send__(:_parse_offset, offset)
     raise TypeError, "invalid second (not numeric)" unless second.is_a?(Numeric)
     raise TypeError, "invalid minute (not numeric)" unless minute.is_a?(Numeric)
     raise TypeError, "invalid hour (not numeric)" unless hour.is_a?(Numeric)
@@ -256,7 +256,7 @@ class DateTime < Date
   #				#=> #<DateTime: 2001-02-03T04:05:06-02:00 ...>
   #    d.new_offset('+09:00')	#=> #<DateTime: 2001-02-03T15:05:06+09:00 ...>
   def new_offset(of = 0)
-    of_sec = self.class.__send__(:_parse_of, of)
+    of_sec = self.class.__send__(:_parse_offset, of)
     # Keep the same absolute instant, re-expressed in the new offset: shift the
     # locally stored wall-clock fields by the change in offset.
     total = @jd * 86400 + @hour * 3600 + @min * 60 + @sec + (of_sec - @of)
@@ -607,7 +607,7 @@ class DateTime < Date
       second_given = !UNSET.equal?(second); second = 0 if UNSET.equal?(second)
 
       # Validate in the C extension's order (offset, second, minute, hour, jd).
-      of_sec = _parse_of(offset)
+      of_sec = _parse_offset(offset)
       _check_hms_types(hour, minute, second)
       raise TypeError, "invalid jd (not numeric)" unless jd.is_a?(Numeric)
 
@@ -634,7 +634,7 @@ class DateTime < Date
       second_given = !UNSET.equal?(second); second = 0 if UNSET.equal?(second)
 
       # Validate in the C extension's order (offset, second, minute, hour, yday, year).
-      of_sec = _parse_of(offset)
+      of_sec = _parse_offset(offset)
       _check_hms_types(hour, minute, second)
       raise TypeError, "invalid yday (not numeric)" unless yday.is_a?(Numeric)
       raise TypeError, "invalid year (not numeric)" unless year.is_a?(Numeric)
@@ -664,7 +664,7 @@ class DateTime < Date
 
       # Validate in the C extension's order (offset, second, minute, hour,
       # cwday, cweek, cwyear).
-      of_sec = _parse_of(offset)
+      of_sec = _parse_offset(offset)
       _check_hms_types(hour, minute, second)
       raise TypeError, "invalid cwday (not numeric)" unless cwday.is_a?(Numeric)
       raise TypeError, "invalid cweek (not numeric)" unless cweek.is_a?(Numeric)
@@ -920,7 +920,7 @@ class DateTime < Date
       _new_dt_from_jd_time(jd, h, m, s, sf, of, sg)
     end
 
-    def _parse_of(offset)
+    def _parse_offset(offset)
       case offset
       when String
         Date.__send__(:offset_str_to_sec, offset)
