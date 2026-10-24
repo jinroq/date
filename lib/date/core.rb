@@ -713,7 +713,7 @@ class Date
   #   Date.new(2001, 2, 3).yday # => 34
   #
   def yday
-    internal_civil unless @year
+    internal_civil
     jd_jan1 = self.class.__send__(:civil_to_jd, @year, 1, 1, @start)
     @jd - jd_jan1 + 1
   end
@@ -790,7 +790,7 @@ class Date
   #   Date.new(2001).leap? # => false
   #
   def leap?
-    internal_civil unless @year
+    internal_civil
     if @jd < @start  # julian?
       @year % 4 == 0
     else
@@ -1138,7 +1138,7 @@ class Date
   # last day of the target month (using the calendar that applies under the
   # cutover). Shared with DateTime#>> so the time of day can be preserved.
   private def month_shifted_jd(n)
-    internal_civil unless @year
+    internal_civil
     m2 = @month + n.to_i
     y2 = @year + (m2 - 1).div(12)
     m2 = (m2 - 1) % 12 + 1
@@ -1515,7 +1515,7 @@ class Date
   # See {asctime}[https://linux.die.net/man/3/asctime].
   #
   def asctime
-    internal_civil unless @year
+    internal_civil
     d = @day
     d_s = d < 10 ? " #{d}" : d.to_s
     y = @year
@@ -1550,7 +1550,7 @@ class Date
   #   Date.new(2001, 2, 3).rfc2822 # => "Sat, 3 Feb 2001 00:00:00 +0000"
   #
   def rfc2822
-    internal_civil unless @year
+    internal_civil
     w = (@jd + 1) % 7
     y = @year
     y_s = y >= 1000 ? y.to_s : (y >= 0 ? format('%04d', y) : format('-%04d', -y))
@@ -1571,7 +1571,7 @@ class Date
   #   Date.new(2001, 2, 3).httpdate # => "Sat, 03 Feb 2001 00:00:00 GMT"
   #
   def httpdate
-    internal_civil unless @year
+    internal_civil
     w = (@jd + 1) % 7
     y = @year
     y_s = y >= 1000 ? y.to_s : (y >= 0 ? format('%04d', y) : format('-%04d', -y))
@@ -1591,7 +1591,7 @@ class Date
   #   Date.new(2001, 2, 3).jisx0301 # => "H13.02.03"
   #
   def jisx0301
-    internal_civil unless @year
+    internal_civil
     jd = @jd
     m = @month
     d = @day
