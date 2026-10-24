@@ -1420,20 +1420,6 @@ class Date
   # ---------------------------------------------------------------------------
 
   # :nodoc:
-  def initialize_copy(other)
-    # Assign every ivar in the canonical order so copies share the same shape
-    # as freshly constructed instances (see #initialize). This stays an explicit
-    # copy rather than delegating to #initialize: DateTime overrides #initialize
-    # with an incompatible (year, month, day, ...) signature, so a shared
-    # initialize_copy must not dispatch through it.
-    @jd            = other.instance_variable_get(:@jd)
-    @start         = other.instance_variable_get(:@start)
-    @year          = other.instance_variable_get(:@year)
-    @month         = other.instance_variable_get(:@month)
-    @day           = other.instance_variable_get(:@day)
-  end
-
-  # :nodoc:
   def marshal_dump
     # 6-element format: [nth, jd, df, sf, of, sg]. A Date has no day fraction,
     # so df and sf are always 0.
