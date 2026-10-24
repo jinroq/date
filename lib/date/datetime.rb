@@ -129,7 +129,7 @@ class DateTime < Date
     abs  = @of.abs
     h    = abs / 3600
     m    = (abs % 3600) / 60
-    format('%s%02d:%02d'.encode(Encoding::US_ASCII), sign, h, m)
+    format('%s%02d:%02d', sign, h, m)
   end
 
   # call-seq:
@@ -280,7 +280,7 @@ class DateTime < Date
   #
   # For other formats,
   # see {Formats for Dates and Times}[rdoc-ref:language/strftime_formatting.rdoc]:
-  def strftime(format = '%FT%T%:z'.encode(Encoding::US_ASCII))
+  def strftime(format = '%FT%T%:z')
     super(format)
   end
 
@@ -423,7 +423,7 @@ class DateTime < Date
   #     DateTime.new(2001,2,3,4,5,6,'-7').to_s
   #				#=> "2001-02-03T04:05:06-07:00"
   def to_s
-    strftime('%Y-%m-%dT%H:%M:%S%:z'.encode(Encoding::US_ASCII))
+    strftime('%Y-%m-%dT%H:%M:%S%:z')
   end
 
   # call-seq:
