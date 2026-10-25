@@ -132,6 +132,11 @@ class DateTime < Date
     format('%s%02d:%02d', sign, h, m)
   end
 
+  def freeze
+    day_fraction
+    super
+  end
+
   # call-seq:
   #   day_fraction -> rational
   #
@@ -139,7 +144,7 @@ class DateTime < Date
   #
   #   DateTime.new(2001,2,3,12).day_fraction # => (1/2)
   def day_fraction
-    Rational(@hour * 3600 + @min * 60 + @sec, 86400) +
+    @day_fraction ||= Rational(@hour * 3600 + @min * 60 + @sec, 86400) +
       Rational(@sec_fraction.numerator, @sec_fraction.denominator * 86400)
   end
 
