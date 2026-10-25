@@ -108,33 +108,25 @@ class Date
 
     # Pre-compiled regex constants for sp_run
     SP_WHITESPACE     = /[ \t\n\r\v\f]+/
-    SP_COLONS         = /:+/
     SP_EO_CHECK       = /[EO]/
-    SP_E_COMBO        = /E[cCxXyY]/
-    SP_O_COMBO        = /O[deHImMSuUVwWy]/
     SP_ALPHA3         = /[A-Za-z]{3}/
-    SP_SIGN           = /[+-]/
     SP_SPACE_OR_DIGIT = / \d|\d{1,2}/
-    SP_AMPM_DOT       = /[AaPp]\.[Mm]\./
-    SP_AMPM           = /[AaPp][Mm]/
     SP_NUM_CHECK      = /\d|%[EO]?[CDdeFGgHIjkLlMmNQRrSsTUuVvWwXxYy0-9]/
     SP_DIGITS_1       = /\d/
     SP_DIGITS_2       = /\d{1,2}/
     SP_DIGITS_3       = /\d{1,3}/
     SP_DIGITS_4       = /\d{1,4}/
-    SP_DIGITS_9       = /\d{1,9}/
     SP_DIGITS_MAX     = /\d+/
-    private_constant :SP_WHITESPACE, :SP_COLONS, :SP_EO_CHECK, :SP_E_COMBO,
-                     :SP_O_COMBO, :SP_ALPHA3, :SP_SIGN, :SP_SPACE_OR_DIGIT,
-                     :SP_AMPM_DOT, :SP_AMPM, :SP_NUM_CHECK,
+    private_constant :SP_WHITESPACE, :SP_EO_CHECK, :SP_ALPHA3,
+                     :SP_SPACE_OR_DIGIT, :SP_NUM_CHECK,
                      :SP_DIGITS_1, :SP_DIGITS_2, :SP_DIGITS_3, :SP_DIGITS_4,
-                     :SP_DIGITS_9, :SP_DIGITS_MAX
+                     :SP_DIGITS_MAX
 
     # Scan an optional leading sign, returning -1 for '-' and 1 otherwise
     # (a '+' or no sign at all). When no sign is present the scanner is left
-    # untouched, since SP_SIGN does not match and #scan does not advance.
+    # untouched.
     def sp_scan_sign(sc)
-      sc.scan(SP_SIGN) == '-' ? -1 : 1
+      sc.scan(/[+-]/) == '-' ? -1 : 1
     end
 
     # Convert an already-scanned numeric field, validate it against an inclusive
@@ -172,7 +164,7 @@ class Date
         fmt_sc.skip(/%/) # skip '%'
 
         # Handle colon modifiers: %:z, %::z, %:::z
-        if fmt_sc.scan(SP_COLONS)
+        if fmt_sc.scan(/:+/)
           throw(:sp_fail) unless fmt_sc.skip(/z/)
           str_sc.pos = sp_zone(str, str_sc.pos, str.bytesize, hash)
           next
@@ -180,7 +172,8 @@ class Date
 
         # Handle E/O locale modifiers
         if fmt_sc.check(SP_EO_CHECK)
-          if fmt_sc.check(SP_E_COMBO) || fmt_sc.check(SP_O_COMBO)
+
+          if fmt_sc.check(/E[cCxXyY]/) || fmt_sc.check(/O[deHImMSuUVwWy]/)
             fmt_sc.skip(SP_EO_CHECK) # skip modifier, fall through to spec
           else
             # Invalid combo: match '%' literally in string
@@ -285,7 +278,7 @@ class Date
           sign = sp_scan_sign(str_sc)
           osi = str_sc.pos
           num_next = !fmt_sc.eos? && fmt_sc.check(SP_NUM_CHECK)
-          s = str_sc.scan(num_next ? SP_DIGITS_9 : SP_DIGITS_MAX)
+          s = str_sc.scan(num_next ? /\d{1,9}/ : SP_DIGITS_MAX)
           throw(:sp_fail) unless s
           n = s.to_i
           n = -n if sign == -1
@@ -304,7 +297,7 @@ class Date
           else
             throw(:sp_fail)
           end
-          unless str_sc.scan(SP_AMPM_DOT) || str_sc.scan(SP_AMPM)
+          unless str_sc.scan(/[AaPp]\.[Mm]\./) || str_sc.scan(/[AaPp][Mm]/)
             throw(:sp_fail)
           end
           hash[:_merid] = merid
