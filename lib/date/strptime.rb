@@ -395,39 +395,23 @@ class Date
       str_sc.pos
     end
 
-    # Fast path for %Y-%m-%d / %F format.
-    # Uses match? + byteslice to avoid StringScanner allocation overhead.
-    STRPTIME_YMD_EXACT = /\A\d{4}-\d{2}-\d{2}\z/
-    STRPTIME_YMD_PREFIX = /\A\d{4}-\d{2}-\d{2}/
-    STRPTIME_YMD_GENERAL = /\A([+-]?\d+)-(\d{1,2})-(\d{1,2})(.*)\z/m
-    private_constant :STRPTIME_YMD_EXACT, :STRPTIME_YMD_PREFIX, :STRPTIME_YMD_GENERAL
-
     def internal_strptime_ymd(str)
       slen = str.bytesize
 
-      # Fast path for "YYYY-MM-DD" (exactly 10 chars)
-      if slen == 10 && STRPTIME_YMD_EXACT.match?(str)
-        year = str.byteslice(0, 4).to_i
-        mon  = str.byteslice(5, 2).to_i
-        mday = str.byteslice(8, 2).to_i
-        return nil if mon < 1 || mon > 12 || mday < 1 || mday > 31
-        return { year: year, mon: mon, mday: mday }
-      end
-
-      # Medium path for "YYYY-MM-DD..." (10+ chars, standard 4-digit year with leftover)
-      if slen > 10 && STRPTIME_YMD_PREFIX.match?(str)
+      # Fast path for "YYYY-MM-DD..." (>= 10 chars, standard 4-digit year with possible leftover)
+      if slen >= 10 && /\A\d{4}-\d{2}-\d{2}/.match?(str)
         year = str.byteslice(0, 4).to_i
         mon  = str.byteslice(5, 2).to_i
         mday = str.byteslice(8, 2).to_i
         if mon >= 1 && mon <= 12 && mday >= 1 && mday <= 31
           hash = { year: year, mon: mon, mday: mday }
-          hash[:leftover] = str.byteslice(10..)
+          hash[:leftover] = str.byteslice(10..) if str.length > 10
           return hash
         end
       end
 
       # General path for signed years, short years, etc.
-      m = STRPTIME_YMD_GENERAL.match(str)
+      m = /\A([+-]?\d+)-(\d{1,2})-(\d{1,2})(.*)\z/m.match(str)
       return nil unless m
       year = m[1].to_i
       mon  = m[2].to_i
@@ -439,17 +423,11 @@ class Date
       hash
     end
 
-    # Parse %Y-%m-%d and directly create Date object.
-    # Returns Date object on success, nil on failure.
-    # Uses match? + byteslice to avoid StringScanner allocation overhead.
-    STRPTIME_YMD_GENERAL_EXACT = /\A([+-]?\d+)-(\d{1,2})-(\d{1,2})\z/
-    private_constant :STRPTIME_YMD_GENERAL_EXACT
-
     def internal_strptime_ymd_to_date(str, sg)
       slen = str.bytesize
 
       # Fast path for exactly "YYYY-MM-DD" (10 chars, positive 4-digit year)
-      if slen == 10 && STRPTIME_YMD_EXACT.match?(str)
+      if slen == 10 && /\A\d{4}-\d{2}-\d{2}\z/.match?(str)
         year = str.byteslice(0, 4).to_i
         mon  = str.byteslice(5, 2).to_i
         mday = str.byteslice(8, 2).to_i
@@ -461,7 +439,7 @@ class Date
       end
 
       # General path for signed years, non-standard lengths
-      m = STRPTIME_YMD_GENERAL_EXACT.match(str)
+      m = /\A([+-]?\d+)-(\d{1,2})-(\d{1,2})\z/.match(str)
       return nil unless m
       year = m[1].to_i
       mon  = m[2].to_i
