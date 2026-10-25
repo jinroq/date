@@ -246,7 +246,7 @@ class DateTime < Date
   end
 
   # call-seq:
-  #   new_start(start = Date::ITALY]) -> new_date
+  #   new_start(start = Date::ITALY) -> new_date
   #
   # Returns a copy of +self+ with the given +start+ value:
   #
@@ -261,7 +261,7 @@ class DateTime < Date
   end
 
   # call-seq:
-  #    d.new_offset([offset=0])  ->  date
+  #    d.new_offset(offset=0)  ->  date
   #
   # Duplicates self and resets its offset.
   #
@@ -298,7 +298,7 @@ class DateTime < Date
   end
 
   # call-seq:
-  #    dt.jisx0301([n=0])  ->  string
+  #    dt.jisx0301(n=0)  ->  string
   #
   # Returns a string in a JIS X 0301 format.
   # The optional argument +n+ is the number of digits for fractional seconds.
@@ -325,8 +325,8 @@ class DateTime < Date
   end
 
   # call-seq:
-  #    dt.iso8601([n=0])    ->  string
-  #    dt.xmlschema([n=0])  ->  string
+  #    dt.iso8601(n=0)    ->  string
+  #    dt.xmlschema(n=0)  ->  string
   #
   # This method is equivalent to strftime('%FT%T%:z').
   # The optional argument +n+ is the number of digits for fractional seconds.
@@ -346,7 +346,7 @@ class DateTime < Date
   alias_method :xmlschema, :iso8601
 
   # call-seq:
-  #    dt.rfc3339([n=0])  ->  string
+  #    dt.rfc3339(n=0)  ->  string
   #
   # This method is equivalent to strftime('%FT%T%:z').
   # The optional argument +n+ is the number of digits for fractional seconds.
@@ -563,7 +563,7 @@ class DateTime < Date
     undef_method :today
 
     # call-seq:
-    #    DateTime._strptime(string[, format='%FT%T%z'])  ->  hash
+    #    DateTime._strptime(string, format='%FT%T%z')  ->  hash
     #
     # Parses the given representation of date and time with the given
     # template, and returns a hash of parsed elements.  _strptime does
@@ -575,7 +575,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.strptime([string='-4712-01-01T00:00:00+00:00'[, format='%FT%T%z'[ ,start=Date::ITALY]]])  ->  datetime
+    #    DateTime.strptime(string='-4712-01-01T00:00:00+00:00', format='%FT%T%z' ,start=Date::ITALY)  ->  datetime
     #
     # Parses the given representation of date and time with the given
     # template, and creates a DateTime object.  strptime does not support
@@ -605,7 +605,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.jd([jd=0[, hour=0[, minute=0[, second=0[, offset=0[, start=Date::ITALY]]]]]])  ->  datetime
+    #    DateTime.jd(jd=0, hour=0, minute=0, second=0, offset=0, start=Date::ITALY)  ->  datetime
     #
     # Creates a DateTime object denoting the given chronological Julian
     # day number.
@@ -632,7 +632,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.ordinal([year=-4712[, yday=1[, hour=0[, minute=0[, second=0[, offset=0[, start=Date::ITALY]]]]]]])  ->  datetime
+    #    DateTime.ordinal(year=-4712, yday=1, hour=0, minute=0, second=0, offset=0, start=Date::ITALY)  ->  datetime
     #
     # Creates a DateTime object denoting the given ordinal date.
     #
@@ -662,7 +662,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.commercial([cwyear=-4712[, cweek=1[, cwday=1[, hour=0[, minute=0[, second=0[, offset=0[, start=Date::ITALY]]]]]]]])  ->  datetime
+    #    DateTime.commercial(cwyear=-4712, cweek=1, cwday=1, hour=0, minute=0, second=0, offset=0, start=Date::ITALY)  ->  datetime
     #
     # Creates a DateTime object denoting the given week date.
     #
@@ -693,7 +693,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.now([start=Date::ITALY])  ->  datetime
+    #    DateTime.now(start=Date::ITALY)  ->  datetime
     #
     # Creates a DateTime object denoting the present time.
     #
@@ -765,7 +765,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.parse(string='-4712-01-01T00:00:00+00:00'[, comp=true[, start=Date::ITALY]], limit: 128)  ->  datetime
+    #    DateTime.parse(string='-4712-01-01T00:00:00+00:00', comp=true, start=Date::ITALY, limit: 128)  ->  datetime
     #
     # Parses the given representation of date and time, and creates a
     # DateTime object.
@@ -794,7 +794,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.iso8601(string='-4712-01-01T00:00:00+00:00'[, start=Date::ITALY], limit: 128)  ->  datetime
+    #    DateTime.iso8601(string='-4712-01-01T00:00:00+00:00', start=Date::ITALY, limit: 128)  ->  datetime
     #
     # Creates a new DateTime object by parsing from a string according to
     # some typical ISO 8601 formats.
@@ -815,7 +815,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.rfc3339(string='-4712-01-01T00:00:00+00:00'[, start=Date::ITALY], limit: 128)  ->  datetime
+    #    DateTime.rfc3339(string='-4712-01-01T00:00:00+00:00', start=Date::ITALY, limit: 128)  ->  datetime
     #
     # Creates a new DateTime object by parsing from a string according to
     # some typical RFC 3339 formats.
@@ -832,7 +832,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.xmlschema(string='-4712-01-01T00:00:00+00:00'[, start=Date::ITALY], limit: 128)  ->  datetime
+    #    DateTime.xmlschema(string='-4712-01-01T00:00:00+00:00', start=Date::ITALY, limit: 128)  ->  datetime
     #
     # Creates a new DateTime object by parsing from a string according to
     # some typical XML Schema formats.
@@ -849,8 +849,8 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.rfc2822(string='Mon, 1 Jan -4712 00:00:00 +0000'[, start=Date::ITALY], limit: 128)  ->  datetime
-    #    DateTime.rfc822(string='Mon, 1 Jan -4712 00:00:00 +0000'[, start=Date::ITALY], limit: 128)   ->  datetime
+    #    DateTime.rfc2822(string='Mon, 1 Jan -4712 00:00:00 +0000', start=Date::ITALY, limit: 128)  ->  datetime
+    #    DateTime.rfc822(string='Mon, 1 Jan -4712 00:00:00 +0000', start=Date::ITALY, limit: 128)   ->  datetime
     #
     # Creates a new DateTime object by parsing from a string according to
     # some typical RFC 2822 formats.
@@ -868,7 +868,7 @@ class DateTime < Date
     alias rfc822 rfc2822
 
     # call-seq:
-    #    DateTime.httpdate(string='Mon, 01 Jan -4712 00:00:00 GMT'[, start=Date::ITALY])  ->  datetime
+    #    DateTime.httpdate(string='Mon, 01 Jan -4712 00:00:00 GMT', start=Date::ITALY)  ->  datetime
     #
     # Creates a new DateTime object by parsing from a string according to
     # some RFC 2616 format.
@@ -885,7 +885,7 @@ class DateTime < Date
     end
 
     # call-seq:
-    #    DateTime.jisx0301(string='-4712-01-01T00:00:00+00:00'[, start=Date::ITALY], limit: 128)  ->  datetime
+    #    DateTime.jisx0301(string='-4712-01-01T00:00:00+00:00', start=Date::ITALY, limit: 128)  ->  datetime
     #
     # Creates a new DateTime object by parsing from a string according to
     # some typical JIS X 0301 formats.

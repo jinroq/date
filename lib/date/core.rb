@@ -825,7 +825,7 @@ class Date
   end
 
   # call-seq:
-  #   new_start(start = Date::ITALY]) -> new_date
+  #   new_start(start = Date::ITALY) -> new_date
   #
   # Returns a copy of +self+ with the given +start+ value:
   #
